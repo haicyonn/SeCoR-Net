@@ -13,6 +13,9 @@ METHOD_A_MEAN = np.array([0.406, 0.456, 0.485, 0.406, 0.456, 0.485], dtype=np.fl
 METHOD_A_STD = np.array([0.225, 0.224, 0.229, 0.225, 0.224, 0.229], dtype=np.float32)
 METHOD_B_MEAN = np.array([0.5, 0.5, 0.5], dtype=np.float32)
 METHOD_B_STD = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+BASE_SIZE = 256
+BASE_PARAMS = 2500356
+BASE_FLOPS = 2663153664
 
 
 def _first_existing(root, names):
@@ -158,6 +161,17 @@ def metrics_from_confusion(counts):
     }
 
 
+def model_stats_for_size(size):
+    scale = (float(size) * float(size)) / float(BASE_SIZE * BASE_SIZE)
+    flops = int(round(float(BASE_FLOPS) * scale))
+    return {
+        "Params": int(BASE_PARAMS),
+        "FLOPs": flops,
+        "Params_M": round(float(BASE_PARAMS) / 1e6, 4),
+        "FLOPs_G": round(float(flops) / 1e9, 4),
+    }
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference/evaluation for the SeCoR inference-only release package.")
     parser.add_argument("--checkpoint", required=True, help="Path to TorchScript .pt checkpoint.")
@@ -233,11 +247,13 @@ def main():
                 print("[batch {}/{}]".format(batch_idx, len(loader)), flush=True)
 
     metrics = metrics_from_confusion(counts)
+    model_stats = model_stats_for_size(args.size)
     result = {
         "checkpoint": str(args.checkpoint),
         "data_root": str(args.data_root),
         "threshold": float(args.threshold),
         "data_pipeline": args.data_pipeline,
+        "model": model_stats,
         "metrics": metrics,
     }
     with open(out_dir / "metrics.json", "w", encoding="utf-8") as f:
@@ -247,7 +263,7 @@ def main():
         writer.writeheader()
         writer.writerow(metrics)
 
-    print(json.dumps(metrics, indent=2), flush=True)
+    print(json.dumps({"model": model_stats, "metrics": metrics}, indent=2), flush=True)
 
 
 if __name__ == "__main__":
